@@ -38,7 +38,6 @@ var (
 // MergedPulls returns a list of pull requests in a project
 func MergedPulls(ctx context.Context, c *client.Client, org string, project string, since time.Time, until time.Time, users []string, branches []string) ([]*github.PullRequest, error) {
 	var result []*github.PullRequest
-
 	opts := &github.PullRequestListOptions{
 		State:     "closed",
 		Sort:      "updated",
@@ -141,26 +140,28 @@ func MergedPulls(ctx context.Context, c *client.Client, org string, project stri
 
 // PRSummary is a summary of a single PR
 type PRSummary struct {
-	URL         string
-	Date        string
-	User        string
-	Project     string
-	Type        string
-	Title       string
-	Delta       int
-	Added       int
-	Deleted     int
-	FilesTotal  int
-	Files       string // newline delimited
-	Description string
+	URL     string
+	Date    string
+	User    string
+	Project string
+	//Type     string
+	Title        string
+	Reviewer     string
+	TargetBranch string
+	//Delta       int
+	//Added       int
+	//Deleted     int
+	//FilesTotal  int
+	//Files       string // newline delimited
+	//Description string
 }
 
 // PullSummary converts GitHub PR data into a summarized view
-func PullSummary(prs map[*github.PullRequest][]github.CommitFile, since time.Time, until time.Time) ([]*PRSummary, error) {
+func PullSummary(prs map[*github.PullRequest][]*github.PullRequestReview, since time.Time, until time.Time) ([]*PRSummary, error) {
 	sum := []*PRSummary{}
 	seen := map[string]bool{}
 
-	for pr, files := range prs {
+	for pr, reviews := range prs {
 		if seen[pr.GetHTMLURL()] {
 			klog.Infof("skipping seen issue: %s", pr.GetHTMLURL())
 			continue
@@ -189,38 +190,46 @@ func PullSummary(prs map[*github.PullRequest][]github.CommitFile, since time.Tim
 			klog.Infof("skipping %s - closed at %s, before %s", pr.GetHTMLURL(), t, since)
 			continue
 		}
-
-		added := 0
-		paths := []string{}
-		deleted := 0
-
-		for _, f := range files {
-			// These files are mostly auto-generated
-			if truncRe.MatchString(f.GetFilename()) && f.GetAdditions() > 10 {
-				klog.Infof("truncating %s from %d to %d lines added", f.GetFilename(), f.GetAdditions(), 10)
-				added += 10
-			} else {
-				klog.Infof("%s - %d added, %d deleted", f.GetFilename(), f.GetAdditions(), f.GetDeletions())
-				added += f.GetAdditions()
+		reviewers := []string{}
+		for _, review := range reviews {
+			if *review.State == "APPROVED" {
+				reviewers = append(reviewers, review.User.GetLogin())
 			}
-			deleted += f.GetDeletions()
-			paths = append(paths, f.GetFilename())
 		}
-		klog.Infof("%s had %d files to consider - %d added, %d deleted", pr.GetHTMLURL(), len(files), added, deleted)
+
+		//added := 0
+		//paths := []string{}
+		//deleted := 0
+
+		//for _, f := range files {
+		//	// These files are mostly auto-generated
+		//	if truncRe.MatchString(f.GetFilename()) && f.GetAdditions() > 10 {
+		//		klog.Infof("truncating %s from %d to %d lines added", f.GetFilename(), f.GetAdditions(), 10)
+		//		added += 10
+		//	} else {
+		//		klog.Infof("%s - %d added, %d deleted", f.GetFilename(), f.GetAdditions(), f.GetDeletions())
+		//		added += f.GetAdditions()
+		//	}
+		//	deleted += f.GetDeletions()
+		//	paths = append(paths, f.GetFilename())
+		//}
+		//klog.Infof("%s had %d files to consider - %d added, %d deleted", pr.GetHTMLURL(), len(files), added, deleted)
 
 		sum = append(sum, &PRSummary{
-			URL:         pr.GetHTMLURL(),
-			Date:        t.Format(dateForm),
-			Project:     project,
-			Type:        prType(files),
-			Title:       pr.GetTitle(),
-			User:        pr.GetUser().GetLogin(),
-			Delta:       added + deleted,
-			Added:       added,
-			Deleted:     deleted,
-			FilesTotal:  pr.GetChangedFiles(),
-			Files:       strings.Join(paths, "\n"),
-			Description: body,
+			URL:     pr.GetHTMLURL(),
+			Date:    t.Format(dateForm),
+			Project: project,
+			//Type:    prType(files),
+			Title:        pr.GetTitle(),
+			User:         pr.GetUser().GetLogin(),
+			Reviewer:     strings.Join(reviewers, " & "),
+			TargetBranch: pr.GetBase().GetRef(),
+			//Delta:       added + deleted,
+			//Added:       added,
+			//Deleted:     deleted,
+			//FilesTotal:  pr.GetChangedFiles(),
+			//Files:       strings.Join(paths, "\n"),
+			//Description: body,
 		})
 	}
 

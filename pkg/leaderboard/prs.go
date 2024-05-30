@@ -34,9 +34,9 @@ func mergeChart(prs []*repo.PRSummary, _ []string) chart {
 
 func deltaChart(prs []*repo.PRSummary, _ []string) chart {
 	uMap := map[string]int{}
-	for _, pr := range prs {
-		uMap[pr.User] += pr.Delta
-	}
+	//for _, pr := range prs {
+	//	uMap[pr.User] += pr.Delta
+	//}
 
 	return chart{
 		ID:     "prDeltas",
@@ -48,9 +48,9 @@ func deltaChart(prs []*repo.PRSummary, _ []string) chart {
 
 func sizeChart(prs []*repo.PRSummary, _ []string) chart {
 	sz := map[string][]int{}
-	for _, pr := range prs {
-		sz[pr.User] = append(sz[pr.User], pr.Delta-pr.Deleted)
-	}
+	//for _, pr := range prs {
+	//	sz[pr.User] = append(sz[pr.User], pr.Delta-pr.Deleted)
+	//}
 
 	uMap := map[string]int{}
 	for u, deltas := range sz {

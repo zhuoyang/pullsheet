@@ -17,17 +17,16 @@ package summary
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
 	"time"
 
 	"github.com/google/go-github/v33/github"
-	"k8s.io/klog/v2"
-
 	"github.com/google/pullsheet/pkg/client"
 	"github.com/google/pullsheet/pkg/repo"
 )
 
 func Pulls(ctx context.Context, c *client.Client, repos []string, users []string, branches []string, since time.Time, until time.Time) ([]*repo.PRSummary, error) {
-	prFiles := map[*github.PullRequest][]github.CommitFile{}
+	prFiles := map[*github.PullRequest][]*github.PullRequestReview{}
 
 	for _, r := range repos {
 		org, project := repo.ParseURL(r)
@@ -38,17 +37,18 @@ func Pulls(ctx context.Context, c *client.Client, repos []string, users []string
 		}
 
 		for _, pr := range prs {
-			files, err := repo.FilteredFiles(ctx, c, pr.GetMergedAt(), org, project, pr.GetNumber())
+			//files, err := repo.FilteredFiles(ctx, c, pr.GetMergedAt(), org, project, pr.GetNumber())
+			//if err != nil {
+			//	return nil, fmt.Errorf("filtered files: %v", err)
+			//}
+			//klog.Errorf("%s files: %v", pr, files)
+			klog.Infof("Fetching reviews for PR %d", pr.GetNumber())
+			reviews, _, err := c.GitHubClient.PullRequests.ListReviews(ctx, org, project, pr.GetNumber(), &github.ListOptions{PerPage: 100})
 			if err != nil {
-				return nil, fmt.Errorf("filtered files: %v", err)
+				klog.Errorf("failed ListReviews: %v", err)
+				break
 			}
-			klog.Errorf("%s files: %v", pr, files)
-
-			prFiles[pr] = []github.CommitFile{}
-
-			for _, f := range files {
-				prFiles[pr] = append(prFiles[pr], *f)
-			}
+			prFiles[pr] = reviews
 		}
 	}
 
